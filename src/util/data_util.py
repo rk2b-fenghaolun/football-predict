@@ -29,3 +29,18 @@ def query_one(conn, sql, params=None):
         return dict(row)
     desc = [d[0] for d in cursor.description]
     return dict(zip(desc, row))
+
+# 取多行记录(返回list[dict])
+def query_list(conn, sql, params=None):
+    cursor = conn.cursor()
+    cursor.execute(sql, params or {})
+    rows = cursor.fetchall()
+    if not rows:
+        return []
+    
+    # Check if row factory is used or just tuples
+    if hasattr(rows[0], 'keys'):
+        return [dict(row) for row in rows]
+        
+    desc = [d[0] for d in cursor.description]
+    return [dict(zip(desc, row)) for row in rows]

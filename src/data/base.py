@@ -1,7 +1,16 @@
 import json
 
 # 比赛基础信息（时间锚点来源）
-from src.util.data_util import query_one
+from src.util.data_util import query_one, query_list
+
+def all_match_ids(conn):
+    sql = """
+    SELECT
+        match_id
+    FROM football_match
+    """
+    rows = query_list(conn, sql)
+    return [row["match_id"] for row in rows]
 
 def extract_base(conn, match_id, match_date):
     sql = """
@@ -76,6 +85,18 @@ def insert_match(conn, match_data):
             match_data.get('allAwayTeam', match_data.get('awayTeam')),
             match_data.get('goalLine', '')
         ))
+    conn.commit()
+
+def update_match_datetime(conn, match_id, match_date):
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE football_match SET
+            match_date=?
+        WHERE match_id=?
+    ''', (
+        match_date,
+        match_id
+    ))
     conn.commit()
 
 def insert_match_result(conn, match_id, sections_nos):
