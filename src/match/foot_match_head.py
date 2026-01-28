@@ -1,5 +1,6 @@
 import sys
 import json
+import concurrent.futures
 
 from src.util.match_api import fetch_api
 from src.util.data_util import get_conn
@@ -28,9 +29,9 @@ def main():
         match_ids = all_match_ids(get_conn(DB_NAME))
     else:
         match_ids = sys.argv[1:]
-        
-    for match_id in match_ids:
-        fetch_match_datetime(match_id)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        executor.map(fetch_match_datetime, match_ids)
 
 if __name__ == "__main__":
     main()

@@ -8,15 +8,12 @@ WITH odds_last AS (
     FROM football_match_odds_his o
     JOIN football_match m ON o.match_id = m.match_id
     WHERE o.odds_type = 'hadList'
-      -- 防止数据泄露：只取比赛日之前的赔率变化
-      -- 字符串比较：'2023-01-01 10:00' > '2023-01-01'，因此会过滤掉比赛日当天的所有赔率
-      AND (o.update_date || ' ' || o.update_time) <= m.match_date
+      -- 用户确认所有赔率数据均为赛前获取，无穿越风险，取最新一条即可
       AND (o.update_date || ' ' || o.update_time) = (
           SELECT MAX(o2.update_date || ' ' || o2.update_time)
           FROM football_match_odds_his o2
           WHERE o2.match_id = o.match_id
             AND o2.odds_type = 'hadList'
-            AND (o2.update_date || ' ' || o2.update_time) <= m.match_date
       )
 ),
 odds_prob AS (
