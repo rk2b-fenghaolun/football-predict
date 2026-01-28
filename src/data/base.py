@@ -1,7 +1,7 @@
 import json
 
 # 比赛基础信息（时间锚点来源）
-from ..util.data_util import query_one
+from src.util.data_util import query_one
 
 def extract_base(conn, match_id, match_date):
     sql = """

@@ -1,84 +1,91 @@
-import lightgbm as lgb
+import os
+import sys
+import sqlite3
+import joblib
 import pandas as pd
+import lightgbm as lgb
+
+# 确保 src 可以被正确导入
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import log_loss, classification_report
-from src.features.feature_engineering import build_training_dataset
+
+
+# 1. load data
+from src.util.data_util import get_conn
 from src.util.config import DB_NAME
 from src.util.config import MODEL_DIR
-import os
 
-# ======================
-# 1. 构建训练数据
-# ======================
-df = build_training_dataset(DB_NAME)
+MODEL_PATH = MODEL_DIR + "/lgb_pre.pkl"
 
-df["match_date"] = pd.to_datetime(df["match_date"])
-df = df.sort_values("match_date")
 
-# ======================
-# 2. 时间切分
-# ======================
-split_date = df["match_date"].quantile(0.8)
 
-train_df = df[df["match_date"] < split_date]
-valid_df = df[df["match_date"] >= split_date]
+def load_data():
+    conn = get_conn(DB_NAME)
+    df = pd.read_sql("SELECT * FROM train_lgb_pre", conn)
+    conn.close()
+    return df
 
-# ======================
-# 3. 特征 / 标签
-# ======================
-DROP_COLS = ["label", "match_date"]
 
-X_train = train_df.drop(columns=DROP_COLS)
-y_train = train_df["label"]
+def main():
+    df = load_data().fillna(0)
 
-X_valid = valid_df.drop(columns=DROP_COLS)
-y_valid = valid_df["label"]
+    X = df.drop(columns=["match_id", "win_flag"])
+    y = df["win_flag"]
 
-# ======================
-# 4. 权重（赔率缺失降权）
-# ======================
-w_train = train_df.get("odds_available", 1.0)
-w_valid = valid_df.get("odds_available", 1.0)
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y)
 
-# ======================
-# 5. Dataset
-# ======================
-lgb_train = lgb.Dataset(X_train, label=y_train, weight=w_train)
-lgb_valid = lgb.Dataset(X_valid, label=y_valid, weight=w_valid)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y_enc,
+        test_size=0.25,
+        random_state=42,
+        stratify=y_enc
+    )
 
-# ======================
-# 6. 参数
-# ======================
-params = {
-    "objective": "multiclass",
-    "num_class": 3,
-    "learning_rate": 0.03,
-    "num_leaves": 63,
-    "min_data_in_leaf": 50,
-    "metric": "multi_logloss",
-    "verbosity": -1,
-    "seed": 42,
-}
+    model = lgb.LGBMClassifier(
+        objective="multiclass",
+        num_class=3,
+        learning_rate=0.03,
+        n_estimators=800,
+        max_depth=6,
+        num_leaves=31,
+        min_child_samples=40,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        reg_alpha=0.5,
+        reg_lambda=0.8,
+        class_weight={
+            0: 1.0,  # A
+            1: 1.6,  # D
+            2: 1.0   # H
+        },
+        random_state=42,
+        n_jobs=-1
+    )
 
-# ======================
-# 7. 训练
-# ======================
-model = lgb.train(
-    params,
-    lgb_train,
-    num_boost_round=3000,
-    valid_sets=[lgb_valid],
-    callbacks=[lgb.early_stopping(200)]
-)
+    model.fit(X_train, y_train)
 
-# ======================
-# 8. 评估
-# ======================
-proba = model.predict(X_valid)
-print("LogLoss:", log_loss(y_valid, proba))
-print(classification_report(y_valid, proba.argmax(axis=1)))
+    proba = model.predict_proba(X_test)
+    pred = model.predict(X_test)
 
-# ======================
-# 9. 保存
-# ======================
-os.makedirs(MODEL_DIR, exist_ok=True)
-model.save_model(os.path.join(MODEL_DIR, "lgbm_win_draw_loss.txt"))
+    print("LogLoss:", log_loss(y_test, proba))
+    print(
+        classification_report(
+            y_test,
+            pred,
+            target_names=le.classes_
+        )
+    )
+
+    joblib.dump(
+        {"model": model, "label_encoder": le},
+        MODEL_PATH
+    )
+    print(f"Model saved to {MODEL_PATH}")
+
+
+if __name__ == "__main__":
+    main()
