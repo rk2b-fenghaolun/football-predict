@@ -1,17 +1,22 @@
 CREATE VIEW IF NOT EXISTS vw_match_train_pre_level1 AS
 WITH odds_last AS (
     SELECT
-        match_id,
-        CAST(json_extract(odds_json, '$.h') AS REAL) AS odds_h,
-        CAST(json_extract(odds_json, '$.d') AS REAL) AS odds_d,
-        CAST(json_extract(odds_json, '$.a') AS REAL) AS odds_a
+        o.match_id,
+        CAST(json_extract(o.odds_json, '$.h') AS REAL) AS odds_h,
+        CAST(json_extract(o.odds_json, '$.d') AS REAL) AS odds_d,
+        CAST(json_extract(o.odds_json, '$.a') AS REAL) AS odds_a
     FROM football_match_odds_his o
-    WHERE odds_type = 'hadList'
-      AND (update_date || ' ' || update_time) = (
-          SELECT MAX(update_date || ' ' || update_time)
+    JOIN football_match m ON o.match_id = m.match_id
+    WHERE o.odds_type = 'hadList'
+      -- 防止数据泄露：只取比赛日之前的赔率变化
+      -- 字符串比较：'2023-01-01 10:00' > '2023-01-01'，因此会过滤掉比赛日当天的所有赔率
+      AND (o.update_date || ' ' || o.update_time) <= m.match_date
+      AND (o.update_date || ' ' || o.update_time) = (
+          SELECT MAX(o2.update_date || ' ' || o2.update_time)
           FROM football_match_odds_his o2
           WHERE o2.match_id = o.match_id
             AND o2.odds_type = 'hadList'
+            AND (o2.update_date || ' ' || o2.update_time) <= m.match_date
       )
 ),
 odds_prob AS (

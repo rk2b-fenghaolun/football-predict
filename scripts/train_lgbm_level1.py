@@ -16,6 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.util.data_util import get_conn
 from src.util.config import DB_NAME
 from src.util.config import MODEL_DIR
+from src.util.config import LABEL_MAP
 
 MODEL_PATH = MODEL_DIR + "/lgb_pre_level1.pkl"
 
@@ -26,6 +27,7 @@ def load_data():
     df = pd.read_sql("""
         SELECT
             match_id,
+            match_date,
             win_flag,
 
             -- ===== 赔率概率 =====
@@ -52,23 +54,28 @@ def main():
     df = load_data().fillna(0)
 
 
-    label_map = {"H": 0, "D": 1, "A": 2}
-    df["label"] = df["win_flag"].map(label_map)
+    df["label"] = df["win_flag"].map(LABEL_MAP)
     # 去除未映射的行，防止 y 含 NaN
     df = df.dropna(subset=["label"])
 
-    le = LabelEncoder()
-
-    X = df.drop(columns=["match_id", "win_flag", "label"])
+    # ===== 修正：基于时间切分验证集 (Time Series Split) =====
+    # 1. 按照日期排序 (关键！必须在分离 X, y 之前排序)
+    df = df.sort_values("match_date")
+    
+    # 2. 分离特征与标签
+    X = df.drop(columns=["match_id", "win_flag", "label", "match_date"])
     y = df["label"]
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y
-)
-
+    # 3. 简单按最后 20% 做验证（防止穿越）
+    train_size = int(len(df) * 0.8)
+    
+    X_train = X.iloc[:train_size]
+    y_train = y.iloc[:train_size]
+    X_test = X.iloc[train_size:]
+    y_test = y.iloc[train_size:]
+    
+    print(f"Train date range: {df.iloc[0]['match_date']} to {df.iloc[train_size-1]['match_date']}")
+    print(f"Test date range: {df.iloc[train_size]['match_date']} to {df.iloc[-1]['match_date']}")
 
     model = lgb.LGBMClassifier(
         objective="multiclass",
@@ -97,8 +104,10 @@ def main():
         digits=3
     ))
 
+    # le = LabelEncoder() # 移除未使用的变量
+
     joblib.dump(
-        {"model": model, "label_encoder": le},
+        {"model": model, "label_map": LABEL_MAP},
         MODEL_PATH
     )
     print(f"Model saved to {MODEL_PATH}")

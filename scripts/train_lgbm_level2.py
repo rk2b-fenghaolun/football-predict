@@ -18,6 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.util.data_util import get_conn
 from src.util.config import DB_NAME
 from src.util.config import MODEL_DIR
+from src.util.config import LABEL_MAP
 
 VIEW_NAME = "vw_match_train_pre_level2"
 RANDOM_STATE = 42
@@ -81,12 +82,17 @@ FEATURES = LEVEL1_FEATURES + FORM_FEATURES
 
 def load_data():
     conn = get_conn(DB_NAME)
-    df = pd.read_sql(f"SELECT * FROM {VIEW_NAME}", conn)
+    # 确保读出 match_date
+    df = pd.read_sql(f"SELECT *, match_date FROM {VIEW_NAME}", conn)
+    # 如果视图里本身就有 match_date，read_sql 可能会返回两列重名的，需要去重或只取需要的
+    # 考虑到 view 定义里有 match_date，这里直接 SELECT * 即可，
+    # 但为了保险起见，做一次去重
+    df = df.loc[:,~df.columns.duplicated()]
+    
     conn.close()
 
     # label
-    label_map = {"H": 0, "D": 1, "A": 2}
-    df["label"] = df["win_flag"].map(label_map)
+    df["label"] = df["win_flag"].map(LABEL_MAP)
 
     # 丢弃异常行
     df = df.dropna(subset=FEATURES + ["label"])
@@ -97,6 +103,64 @@ def load_data():
 # =========================
 # 训练 & 评估
 # =========================
+
+def main():
+    df = load_data().fillna(0)
+
+    X_all = df[FEATURES]
+    y_all = df["label"]
+    
+    # 确保有 match_date 并且排序
+    if "match_date" in df.columns:
+        df = df.sort_values("match_date")
+        X_all = df[FEATURES] # 重新按顺序赋值
+        y_all = df["label"]
+        
+        train_size = int(len(df) * 0.8)
+        X_train = X_all.iloc[:train_size]
+        y_train = y_all.iloc[:train_size]
+        X_test = X_all.iloc[train_size:]
+        y_test = y_all.iloc[train_size:]
+        
+        print(f"Train date range: {df.iloc[0]['match_date']} to {df.iloc[train_size-1]['match_date']}")
+        print(f"Test date range: {df.iloc[train_size]['match_date']} to {df.iloc[-1]['match_date']}")
+    else:
+        print("Warning: 'match_date' not found, using random split (NOT RECOMMENDED)")
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_all, y_all, test_size=0.2, random_state=RANDOM_STATE, stratify=y_all
+        )
+
+    model = lgb.LGBMClassifier(
+        objective="multiclass",
+        num_class=3,
+        n_estimators=500,
+        learning_rate=0.03,
+        max_depth=7,
+        num_leaves=31,
+        # Config LABEL_MAP: H:0, D:1, A:2
+        class_weight={0: 1.0, 1: 1.6, 2: 1.0},
+        random_state=RANDOM_STATE,
+        n_jobs=-1
+    )
+
+    model.fit(X_train, y_train)
+
+    proba = model.predict_proba(X_test)
+    pred = model.predict(X_test)
+
+    print("LogLoss:", log_loss(y_test, proba))
+    
+    target_names = [k for k, v in sorted(LABEL_MAP.items(), key=lambda item: item[1])]
+    print(classification_report(y_test, pred, target_names=target_names))
+
+    # Save
+    import joblib
+    model_path = os.path.join(MODEL_DIR, "lgb_pre_level2.pkl")
+    joblib.dump({"model": model, "features": FEATURES}, model_path)
+    print(f"Model saved to {model_path}")
+
+if __name__ == "__main__":
+    main()
 
 def train_and_evaluate(df):
     X = df[FEATURES]
