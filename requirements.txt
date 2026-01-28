@@ -1,0 +1,13 @@
+pandas
+scikit-learn
+lightgbm
+numpy
+matplotlib
+seaborn
+xgboost
+catboost
+tensorflow
+torch
+sqlalchemy
+pymysql
+tqdm
