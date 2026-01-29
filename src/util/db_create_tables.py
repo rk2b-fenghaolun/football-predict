@@ -131,6 +131,35 @@ CREATE_TABLES_SQL = [
         points INTEGER, -- 积分
         ranking INTEGER -- 排名
     );''',
+    '''CREATE TABLE IF NOT EXISTS football_team_match_context (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        match_id INTEGER NOT NULL,
+        team_id INTEGER NOT NULL,
+        type TEXT,   -- 类型 home 主队 away 客队,
+        season_id INTEGER, -- 赛季ID
+        league_id INTEGER, -- 联赛ID
+        league_name TEXT, -- 联赛名称
+        current_round INTEGER,  -- 当前第几轮
+        league_total_rounds INTEGER, -- 联赛总轮数
+        matches_played INTEGER,  -- 累计比赛数
+        wins INTEGER, -- 胜
+        draws INTEGER, -- 平
+        losses INTEGER, -- 负
+        goals_for INTEGER, -- 进球
+        goals_against INTEGER, -- 失球
+        goal_diff INTEGER, -- 净进球
+        points INTEGER, -- 积分
+        ranking INTEGER, -- 排名
+        ranking_missing_flag INTEGER,        -- 1 = 该轮排名无意义
+        round_ratio REAL, -- current_round / league_total_rounds
+        points_per_match REAL, -- 场均积分 = points / matches_played
+        goals_for_per_match REAL, -- 场均进球 = goals_for / matches_played
+        goals_against_per_match REAL, -- 场均失球 = goals_against / matches_played
+        goal_diff_per_match REAL, -- 场均净进球 = goal_diff / matches_played
+        win_rate REAL, -- 胜率
+        draw_rate REAL, -- 平率
+        loss_rate REAL -- 负率
+    );''',
     '''CREATE TABLE IF NOT EXISTS football_match_preview_future_matches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         match_id INTEGER,
