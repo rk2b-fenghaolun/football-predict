@@ -23,7 +23,7 @@ def fetch_matches():
                     "matchId": sub_match.get("matchId"),
                     "matchNum": sub_match.get("matchNum"),
                     "matchNumStr": sub_match.get("matchNumStr"),
-                    "matchDate": sub_match.get("matchDate", ""),
+                    "matchDate": sub_match.get("matchDate", "") + " " + sub_match.get("matchTime", ""),
                     "leagueId": sub_match.get("leagueId"),
                     "leagueName": sub_match.get("leagueAllName") or sub_match.get("leagueName"),
                     "leagueNameAbbr": sub_match.get("leagueAbbName") or "",
