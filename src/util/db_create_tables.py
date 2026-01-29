@@ -35,6 +35,38 @@ CREATE_TABLES_SQL = [
         win_flag TEXT, -- 结果标志 H 主胜 D 平 A 客胜
         FOREIGN KEY(match_id) REFERENCES football_match(match_id)
     );''',
+    '''CREATE TABLE IF NOT EXISTS football_match_result_analysis (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        match_id INTEGER,
+        type TEXT,   -- 类型 home 主队 away 客队
+        team_id INTEGER, -- 球队ID
+        stats_data TEXT,   -- 客队
+        stats_tc TEXT, -- 统计类型(控球,进球,射正,射偏,角球,越位,犯规,黄牌)
+        stats_tc_desc TEXT -- 统计类型描述
+    );''',
+    '''CREATE TABLE IF NOT EXISTS football_match_result_lineup (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        match_id INTEGER,
+        team_type TEXT, -- home/away
+        team_id INTEGER, -- 球队ID
+        team_name TEXT, -- 球队名称
+        formation TEXT, -- 4-3-3, 4-4-2, etc
+        player_positions_json TEXT, -- JSON存储球员位置
+        starting_xi TEXT, -- 首发11人ID列表
+        substitutes TEXT, -- 替补ID列表
+        FOREIGN KEY(match_id) REFERENCES football_match(match_id)
+    );''',
+    '''CREATE TABLE IF NOT EXISTS football_match_result_event (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        match_id INTEGER,
+        team_id INTEGER, -- 球队ID
+        event_team TEXT, -- home/away
+        event_type TEXT, -- 类型
+        event_time TEXT, -- 事件时间
+        event_player TEXT, -- 球员
+        event_json TEXT, -- 事件详情JSON
+        FOREIGN KEY(match_id) REFERENCES football_match(match_id)
+    );''',
     '''CREATE TABLE IF NOT EXISTS football_match_odds_his (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         match_id INTEGER,
@@ -113,27 +145,6 @@ CREATE_TABLES_SQL = [
         awayTeamShortName TEXT, -- 客队简称
         homeTeamId INTEGER, -- 主队ID
         homeTeamShortName TEXT  -- 主队简称
-    );''',
-    '''CREATE TABLE IF NOT EXISTS football_match_result_analysis (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        match_id INTEGER,
-        type TEXT,   -- 类型 home 主队 away 客队
-        team_id INTEGER, -- 球队ID
-        stats_data TEXT,   -- 客队
-        stats_tc TEXT, -- 统计类型(控球,进球,射正,射偏,角球,越位,犯规,黄牌)
-        stats_tc_desc TEXT -- 统计类型描述
-    );''',
-    '''CREATE TABLE IF NOT EXISTS football_match_result_lineup (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        match_id INTEGER,
-        team_type TEXT, -- home/away
-        team_id INTEGER, -- 球队ID
-        team_name TEXT, -- 球队名称
-        formation TEXT, -- 4-3-3, 4-4-2, etc
-        player_positions_json TEXT, -- JSON存储球员位置
-        starting_xi TEXT, -- 首发11人ID列表
-        substitutes TEXT, -- 替补ID列表
-        FOREIGN KEY(match_id) REFERENCES football_match(match_id)
     );'''
 ]
 
